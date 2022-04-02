@@ -6,7 +6,7 @@
 #include <LiquidCrystal_I2C.h>
 #include "Control/controller.h"
 #include "Water/EC_Sensor.h"
-
+#include "Water/PH_Sensor.h"
 #include "Water/WL_Sensor.h"
 #include "Water/WT_Sensor.h"
 #include "Circumstacne/co2_sensor.h"
@@ -15,29 +15,31 @@
 /* Define pin Number */ 
 
 
-#define WATER_HIGH_PIN            13   // DFROBOT SEN0204
-#define WATER_LOW_PIN             12   // DFROBOT SEN0204
+#define WATER_LOW_PIN             13   // DFROBOT SEN0204
+#define WATER_HIGH_PIN            12   // DFROBOT SEN0204
 //                                11   // None
-//                                11   // None
+//                                10   // None
 #define NUTRIENT_RELAY_PIN        A0   //  12 V
 #define LED_RELAY_PIN              9   // LED      220 V 
 #define AIRCON_FAN_RELAY_PIN       8   //      12 V
 #define AIRCON_RELAY_PIN           7   // Nutrient 220 V
 #define WATER_TEMP_PIN             6   // YWROBOT DS18B20 + SEN050007
-#define EC_RX_PIN                  5   // Atlas EC Sensor
-#define EC_TX_PIN                  4   //
-#define CO2_RX_PIN                 3   // DFROBOT MHZ19
-#define CO2_TX_PIN                 2   //  
+#define EC_TX_PIN                  5   // Atlas EC Sensor
+#define EC_RX_PIN                  4   // 
+#define CO2_TX_PIN                 3   // DFROBOT MHZ19 
+#define CO2_RX_PIN                 2   // 
+#define PH_SENSOR_PIN             A2   // DFROBOT PH Sensor
 
 /*Temp,Humid and Lux sensors are I2C Communicate*/
 
 Controller airconFan, led, aircon, nutrient; 
 
 ECSensor ecSensor(EC_RX_PIN,EC_TX_PIN);
-WTSensor waterTempSensor;
+PHSensor phSensor(PH_SENSOR_PIN);
+WTSensor waterTempSensor(WATER_TEMP_PIN);
 WLSensor waterLevelSensor(WATER_HIGH_PIN,WATER_LOW_PIN);
 Adafruit_HTU21DF temphumidSensor;
-BH1750 luxSensor;
+BH1750 luxSensor(0x23);
 co2Sensor ppmSensor(CO2_RX_PIN,CO2_TX_PIN);
 
 LiquidCrystal_I2C lcd(0x27,20,4);
@@ -67,7 +69,7 @@ float currentHumidity = -1;
 float currentLux = -1;
 float currentPPM = -1;
 float currentWaterTemp = -1;
-String currentWaterLevel = "Error";
+water_level currentWaterLevel = WATER_LEVEL_ERROR;
 float currentEC = -1;
 float currentPH = -1;
 
@@ -97,16 +99,16 @@ void setRequestHandlerFromWifi();
 
 void takeCurrentValue()
 {
-  currentTemp = temphumidSensor.readTemperature();          if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentHumidity = temphumidSensor.readHumidity();         if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentLux = luxSensor.readLightLevel();;                 if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentPPM = ppmSensor.getPPM();                          if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentWaterTemp = waterTempSensor.getWaterTemperature(); if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentWaterLevel = waterLevelSensor.getWaterLevel();     if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentEC = ecSensor.getEC();                             if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  //TODO: currentPH = phSensor.getPH();                             if(Serial.available() > 0) connectToESPWithMillisDelay(500);
+  currentTemp = temphumidSensor.readTemperature();           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentHumidity = temphumidSensor.readHumidity();          if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentLux = luxSensor.readLightLevel();;                  if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentPPM = ppmSensor.getPPM();                           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentWaterTemp = waterTempSensor.getWaterTemperature();  if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentWaterLevel = waterLevelSensor.getWaterLevel_enum(); if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentEC = ecSensor.getEC();                              if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentPH = phSensor.getPHAvg();                           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
 
-  payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + currentWaterLevel  + "," + String(currentPH) + "," + String(currentEC) + "," ;
+  payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + String(currentWaterLevel)  + "," + String(currentPH) + "," + String(currentEC) + "," ;
 
 };
 
@@ -139,7 +141,7 @@ void displayValuesInLCD()
 
 void controlEC()
 {
-  Serial.println("Control EC Start");
+  // Serial.println("Control EC Start");
    if (currentEC < goalEC && waterLevelSensor.getWaterLevel_enum() > WATER_LEVEL_LOW)
   {
     float difference = currentEC - goalEC;
@@ -153,7 +155,7 @@ void controlEC()
 
 void controlTemp()
 {
-  Serial.println("Control Temp Start");
+  // Serial.println("Control Temp Start");
   if (currentTemp > goalTemp) aircon.turnOn();  
   else                        aircon.turnOff();
   controlTempMinutes = millis() /60000;

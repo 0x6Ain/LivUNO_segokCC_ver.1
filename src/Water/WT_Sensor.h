@@ -10,10 +10,10 @@ class WTSensor
 {
 private : 
   uint8_t tempPinNum;
+  OneWire oneWire;
 
 public :
-  void set_TempSensor(uint8_t pin) { tempPinNum = pin;}
-  OneWire oneWire = OneWire(tempPinNum);
+  WTSensor(uint8_t pin) : oneWire(pin) {}
   DallasTemperature waterTempSensor = DallasTemperature(&oneWire);
 
   float getWaterTemperature()
