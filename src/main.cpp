@@ -32,9 +32,7 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   currentMinutes = millis()/60000;
-  takeCurrentValue();
-  // displayValuesInLCD();
-  // Serial.println(payload);
+  setRequestHandlerFromWifi();
   if (currentMinutes - controlECMinutes    >= controlECPeriod)     controlEC();
   if (currentMinutes - controlTempMinutes  >= controlTempPeriod)   controlTemp();
   if (currentMinutes - controlLedMinutes   >= controlLedPeriod)    controlLed();

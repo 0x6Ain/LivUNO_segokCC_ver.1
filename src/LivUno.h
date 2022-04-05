@@ -80,7 +80,7 @@ unsigned long turnOnLEDPeriod   = 18 * 60;
 unsigned long turnOffLEDPeriod  =  6 * 60;
 
 
-String payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + currentWaterLevel  + "," + String(currentPH) + "," + String(currentEC) + "," ;
+String payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + currentWaterLevel  + "," + String(currentPH) + "," + String(currentEC);
 
 
 void takeCurrentValue();
@@ -99,16 +99,16 @@ void setRequestHandlerFromWifi();
 
 void takeCurrentValue()
 {
-  currentTemp = temphumidSensor.readTemperature();           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentHumidity = temphumidSensor.readHumidity();          if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentLux = luxSensor.readLightLevel();;                  if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentPPM = ppmSensor.getPPM();                           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentWaterTemp = waterTempSensor.getWaterTemperature();  if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentWaterLevel = waterLevelSensor.getWaterLevel_enum(); if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentEC = ecSensor.getEC();                              if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
-  currentPH = phSensor.getPHAvg();                           if(Serial.available() > 0) connectToESPWithMillisDelay(wifiWaitPeriod);
+  currentTemp = temphumidSensor.readTemperature();           
+  currentHumidity = temphumidSensor.readHumidity();          
+  currentLux = luxSensor.readLightLevel();;                  
+  currentPPM = ppmSensor.getPPM();                           
+  currentWaterTemp = waterTempSensor.getWaterTemperature();  
+  currentWaterLevel = waterLevelSensor.getWaterLevel_enum(); 
+  currentEC = ecSensor.getEC();                              
+  currentPH = phSensor.getPHAvg();                           
 
-  payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + String(currentWaterLevel)  + "," + String(currentPH) + "," + String(currentEC) + "," ;
+  payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + String(currentWaterLevel)  + "," + String(currentPH) + "," + String(currentEC);
 
 };
 
@@ -142,7 +142,9 @@ void displayValuesInLCD()
 void controlEC()
 {
   // Serial.println("Control EC Start");
-   if (currentEC < goalEC && waterLevelSensor.getWaterLevel_enum() > WATER_LEVEL_LOW)
+  currentEC = ecSensor.getEC();
+  constrain(currentEC,0,10);
+  if (currentEC < goalEC && waterLevelSensor.getWaterLevel_enum() > WATER_LEVEL_LOW)
   {
     float difference = currentEC - goalEC;
     nutrient.turnOn();
@@ -150,19 +152,23 @@ void controlEC()
     nutrient.turnOff();
   }
 
-  controlECMinutes = millis()/60000;
+  controlECMinutes = millis() / 60000;
 };
 
 void controlTemp()
 {
   // Serial.println("Control Temp Start");
+  currentTemp = temphumidSensor.readTemperature();
+  constrain(currentTemp,0,50);
   if (currentTemp > goalTemp) aircon.turnOn();  
   else                        aircon.turnOff();
   controlTempMinutes = millis() /60000;
 };
 
 void controlHumid()
-{
+{ 
+  currentHumidity = temphumidSensor.readHumidity();
+  constrain(currentHumidity,0,100);
   if(currentHumidity > goalHumid) airconFan.turnOn();
   else                            airconFan.turnOff();
   controlHumidMinutes = millis()/60000;
@@ -200,20 +206,16 @@ void setRequestHandlerFromWifi()
     String temp = "";
     while(Serial.available() > 0) 
     {
-        temp = Serial.readStringUntil('\n');
-        Serial.println(temp);
-
-        char deliv[strlen(temp.c_str())];
-        strcpy(deliv, temp.c_str());
-        char* perform = strtok(deliv, "/");
+        temp = Serial.readStringUntil('\n'); // Do not using char(13) instead '\n' 
+        // Serial.println(temp);
+        char* perform = strtok((char*)temp.c_str(), "/");
         char* option = strtok(NULL,"/");
         char* ptr_p = strtok(NULL, "=");
 
-        // Serial.println(perform);
-        // Serial.println(option);
 
              if(strcmp(perform,"current") == 0)
         {
+          takeCurrentValue();
           Serial.print(payload);
           Serial.print("\n");
         }
