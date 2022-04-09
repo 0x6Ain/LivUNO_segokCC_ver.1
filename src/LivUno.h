@@ -3,14 +3,12 @@
 
 #include <BH1750.h>
 #include <Adafruit_HTU21DF.h>
-#include <LiquidCrystal_I2C.h>
-#include "Control/controller.h"
+#include "Controller/controller.h"
 #include "Water/EC_Sensor.h"
 #include "Water/PH_Sensor.h"
 #include "Water/WL_Sensor.h"
 #include "Water/WT_Sensor.h"
 #include "Circumstacne/co2_sensor.h"
-#include "DisplayLCD/changeLengthSetLCD.h"
 
 /* Define pin Number */ 
 
@@ -32,7 +30,7 @@
 
 /*Temp,Humid and Lux sensors are I2C Communicate*/
 
-Controller airconFan, led, aircon, nutrient; 
+Controller fan, led, aircon, nutrient; 
 
 ECSensor ecSensor(EC_RX_PIN,EC_TX_PIN);
 PHSensor phSensor(PH_SENSOR_PIN);
@@ -42,9 +40,6 @@ Adafruit_HTU21DF temphumidSensor;
 BH1750 luxSensor(0x23);
 co2Sensor ppmSensor(CO2_RX_PIN,CO2_TX_PIN);
 
-LiquidCrystal_I2C lcd(0x27,20,4);
-
-
 
 // Timing
 extern volatile unsigned long timer0_millis;       // Reset Time Value
@@ -53,13 +48,14 @@ unsigned long currentMinutes;                      // Snapshot of current time
 unsigned long controlECMinutes;                    // Timer to check EC and control Nutrient Pump
 unsigned long controlTempMinutes;                  // Timer to check Temperature and control Aircon
 unsigned long controlHumidMinutes;                 // Timer to check Temperature and control Aircon
-unsigned long controlLedMinutes;                   // Timer to check Temperature and control Aircon
 
 unsigned long controlECPeriod    =   30;           // Time in Minutes between controling Electronic Conductivity
 unsigned long controlTempPeriod  =    5;           // Time in Minutes between controling Temperature
 unsigned long controlHumidPeriod =    5;           // Time in Minutes between controling Humiditiy
-unsigned long controlLedPeriod   =    1;           // Time in Minutes between controling LED
 
+bool isTurnOnAircon = false;
+bool isTurnOnFan = false;
+bool isTurnOnNutrient = false;
 
 unsigned long wifiWaitPeriod = 5000;               // Time to wait for sensor data if message.available
 
@@ -73,9 +69,9 @@ water_level currentWaterLevel = WATER_LEVEL_ERROR;
 float currentEC = -1;
 float currentPH = -1;
 
-float goalEC = 2.0;
-float goalTemp = 24;
-float goalHumid = 34;
+float goalEC = -1;
+float goalTemp = -1;
+float goalHumid = -1;
 unsigned long turnOnLEDPeriod   = 18 * 60;
 unsigned long turnOffLEDPeriod  =  6 * 60;
 
@@ -113,32 +109,6 @@ void takeCurrentValue()
 };
 
 
-
-void displayValuesInLCD()
-{
-  lcd.clear();
-  lcd.print("Temperature" + changeLengthSetLCD(currentTemp,9));
-  lcd.setCursor(0,1);
-  lcd.print("Humidity" + changeLengthSetLCD(currentHumidity,12));
-  lcd.setCursor(0,2);
-  lcd.print("Lux" + changeLengthSetLCD(currentLux,17));
-  lcd.setCursor(0,3);
-  lcd.print("Co2" + changeLengthSetLCD(currentPPM,17));
-  
-  connectToESPWithMillisDelay(3000);
-
-  lcd.clear();
-  lcd.print("WaterTemp" + changeLengthSetLCD(currentWaterTemp,11));
-  lcd.setCursor(0,1);
-  lcd.print("WaterLevel" + changeLengthSetLCD(currentWaterLevel,10));
-  lcd.setCursor(0,2);
-  lcd.print("EC" + changeLengthSetLCD(currentEC,18));
-  lcd.setCursor(0,3);
-  lcd.print("PH" + changeLengthSetLCD(currentPH,18));
-
-  connectToESPWithMillisDelay(3000);
-};
-
 void controlEC()
 {
   // Serial.println("Control EC Start");
@@ -169,24 +139,9 @@ void controlHumid()
 { 
   currentHumidity = temphumidSensor.readHumidity();
   constrain(currentHumidity,0,100);
-  if(currentHumidity > goalHumid) airconFan.turnOn();
-  else                            airconFan.turnOff();
+  if(currentHumidity > goalHumid) fan.turnOn();
+  else                            fan.turnOff();
   controlHumidMinutes = millis()/60000;
-};
-
-void controlLed()
-{
-  if (!led.isTurnOn) {
-    led.turnOn();
-    controlLedPeriod = turnOnLEDPeriod;
-  }
-
-  else
-  {
-    led.turnOff();
-    controlLedPeriod = turnOffLEDPeriod;
-  }
-  controlLedMinutes = millis()/60000;
 };
 
 void connectToESPWithMillisDelay(int delay)
@@ -208,10 +163,10 @@ void setRequestHandlerFromWifi()
     {
         temp = Serial.readStringUntil('\n'); // Do not using char(13) instead '\n' 
         // Serial.println(temp);
+        //  Wifi will be sent "perform/option=value_p\n"
         char* perform = strtok((char*)temp.c_str(), "/");
-        char* option = strtok(NULL,"/");
-        char* ptr_p = strtok(NULL, "=");
-
+        char* option = strtok(NULL,"=");
+        char* value_p = strtok(NULL, "");
 
              if(strcmp(perform,"current") == 0)
         {
@@ -220,30 +175,31 @@ void setRequestHandlerFromWifi()
           Serial.print("\n");
         }
 
-        else if(strcmp(perform,"control") == 0)
+        else if(strcmp(perform,"controller") == 0)
         {
-               if(strcmp(option,"reset") == 0)              asm volatile("jmp 0");
-          else if(strcmp(option,"turnOnLED") == 0)          led.turnOn();
-          else if(strcmp(option,"turnOffLED") == 0)         led.turnOff();
-          else if(strcmp(option,"turnOnAirconFan") == 0)    airconFan.turnOn();
-          else if(strcmp(option,"turnOffAirconFan") == 0)   airconFan.turnOff();
-          else if(strcmp(option,"turnOnAircon") == 0)       aircon.turnOn();
-          else if(strcmp(option,"turnOffAircon") == 0)      aircon.turnOff();
-          else if(strcmp(option,"abjustEC") == 0)           controlEC();
-          else if(strcmp(option,"abjustHumid") == 0)        controlHumid();
+               if (strcmp(option, "reset")  == 0)                                 asm volatile("jmp 0");
+          else if (strcmp(option, "led")    == 0 && strcmp(value_p,"on")  == 0)   led.turnOn();
+          else if (strcmp(option, "led")    == 0 && strcmp(value_p,"off") == 0)   led.turnOff();    
+          else if (strcmp(option, "aircon") == 0 && strcmp(value_p,"on")  == 0)   isTurnOnAircon = true;
+          else if (strcmp(option, "aircon") == 0 && strcmp(value_p,"off") == 0)   isTurnOnAircon = false;
+          else if (strcmp(option, "fan")    == 0 && strcmp(value_p,"on")  == 0)   isTurnOnFan = true;
+          else if (strcmp(option, "fan")    == 0 && strcmp(value_p,"off") == 0)   isTurnOnFan = false;
+
+          // else if(strcmp(option,"abjustEC") == 0)           controlEC();
+          // else if(strcmp(option,"abjustHumid") == 0)        controlHumid();
         }
 
         else if(strcmp(perform,"setting") == 0)
         {
-               if(strcmp(option,"goalEC") == 0)             goalEC = atof(ptr_p);
-          else if(strcmp(option,"goalTemp") == 0)           goalTemp = atof(ptr_p);
-          else if(strcmp(option,"goalHumid") == 0)          goalHumid = atof(ptr_p);
-          else if(strcmp(option,"controlECPeriod") == 0 )   controlECPeriod = atof(ptr_p);
-          else if(strcmp(option,"controlTempPeriod") == 0 ) controlTempPeriod = atof(ptr_p);
-          else if(strcmp(option,"controlHumidPeriod") == 0 )controlHumidPeriod = atof(ptr_p);
-          else if(strcmp(option,"controlLedPeriod") == 0 )  controlLedPeriod = atof(ptr_p);
-          else if(strcmp(option,"turnOnLEDPeriod") == 0 )   turnOnLEDPeriod = atof(ptr_p);
-          else if(strcmp(option,"turnOffLEDPeriod") == 0 )  turnOffLEDPeriod = atof(ptr_p);
+               if(strcmp(option,"goalEC") == 0)             goalEC = atof(value_p);
+          else if(strcmp(option,"goalTemp") == 0)           goalTemp = atof(value_p);
+          else if(strcmp(option,"goalHumid") == 0)          goalHumid = atof(value_p);
+          // else if(strcmp(option,"controlECPeriod") == 0 )   controlECPeriod = atof(value_p);
+          // else if(strcmp(option,"controlTempPeriod") == 0 ) controlTempPeriod = atof(value_p);
+          // else if(strcmp(option,"controlHumidPeriod") == 0 )controlHumidPeriod = atof(value_p);
+          // else if(strcmp(option,"controlLedPeriod") == 0 )  controlLedPeriod = atof(value_p);
+          // else if(strcmp(option,"turnOnLEDPeriod") == 0 )   turnOnLEDPeriod = atof(value_p);
+          // else if(strcmp(option,"turnOffLEDPeriod") == 0 )  turnOffLEDPeriod = atof(value_p);
 
         }   
     }

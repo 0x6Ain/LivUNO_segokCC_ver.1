@@ -1,12 +1,12 @@
 #include "LivUno.h"
 //2021-04-01 
 
+bool isTurnOnAircon = false;
+bool isTurnOnFan = false;
+bool isTurnOnNutrient = false;
+
 void setup() {
   Serial.begin(9600);
-
-  lcd.init();
-  lcd.backlight();
-  lcd.print("LivFarm_Mega_ver.1");
 
   /* Setting Sensor */
   ecSensor.begin();
@@ -33,9 +33,8 @@ void loop() {
   // put your main code here, to run repeatedly:
   currentMinutes = millis()/60000;
   setRequestHandlerFromWifi();
-  if (currentMinutes - controlECMinutes    >= controlECPeriod)     controlEC();
-  if (currentMinutes - controlTempMinutes  >= controlTempPeriod)   controlTemp();
-  if (currentMinutes - controlLedMinutes   >= controlLedPeriod)    controlLed();
-  if (currentMinutes - controlHumidMinutes >= controlHumidPeriod)  controlHumid();
+  if ( isTurnOnNutrient && (currentMinutes - controlECMinutes    >= controlECPeriod))     controlEC();
+  if ( isTurnOnAircon   && (currentMinutes - controlTempMinutes  >= controlTempPeriod))   controlTemp();
+  if ( isTurnOnFan      && (currentMinutes - controlHumidMinutes >= controlHumidPeriod))  controlHumid();
   
 }
