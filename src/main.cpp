@@ -1,10 +1,6 @@
 #include "LivUno.h"
 //2021-04-01 
 
-bool isTurnOnAircon = false;
-bool isTurnOnFan = false;
-bool isTurnOnNutrient = false;
-
 void setup() {
   Serial.begin(9600);
 
@@ -16,25 +12,26 @@ void setup() {
 
   /* Setting Control */
   aircon.begin(AIRCON_RELAY_PIN);
-  airconFan.begin(AIRCON_FAN_RELAY_PIN);
+  fan.begin(AIRCON_FAN_RELAY_PIN);
   led.begin(LED_RELAY_PIN);
   nutrient.begin(NUTRIENT_RELAY_PIN);
 
   /* Checking Control */
-  aircon.operateTwoSeconds();
-  airconFan.operateTwoSeconds();
-  led.operateTwoSeconds();
-  nutrient.operateTwoSeconds();
+  // aircon.operateTwoSeconds();
+  // fan.operateTwoSeconds();
+  // led.operateTwoSeconds();
+  // nutrient.operateTwoSeconds();
+ 
 
-  Serial.println("Setting Done");
+Serial.println("Setting Done");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  currentMinutes = millis()/60000;
+  currentSeconds = millis()/1000;
   setRequestHandlerFromWifi();
-  if ( isTurnOnNutrient && (currentMinutes - controlECMinutes    >= controlECPeriod))     controlEC();
-  if ( isTurnOnAircon   && (currentMinutes - controlTempMinutes  >= controlTempPeriod))   controlTemp();
-  if ( isTurnOnFan      && (currentMinutes - controlHumidMinutes >= controlHumidPeriod))  controlHumid();
+  if ( isTurnOnNutrient && (currentSeconds - controlECSeconds    >= controlECPeriod))     controlEC();
+  if ( isTurnOnAircon   && (currentSeconds - controlTempSeconds  >= controlTempPeriod))   controlTemp();
+  if ( isTurnOnFan      && (currentSeconds - controlHumidSeconds >= controlHumidPeriod))  controlHumid();
   
 }

@@ -44,14 +44,14 @@ co2Sensor ppmSensor(CO2_RX_PIN,CO2_TX_PIN);
 // Timing
 extern volatile unsigned long timer0_millis;       // Reset Time Value
 
-unsigned long currentMinutes;                      // Snapshot of current time
-unsigned long controlECMinutes;                    // Timer to check EC and control Nutrient Pump
-unsigned long controlTempMinutes;                  // Timer to check Temperature and control Aircon
-unsigned long controlHumidMinutes;                 // Timer to check Temperature and control Aircon
+unsigned long currentSeconds;                      // Snapshot of current time
+unsigned long controlECSeconds;                    // Timer to check EC and control Nutrient Pump
+unsigned long controlTempSeconds;                  // Timer to check Temperature and control Aircon
+unsigned long controlHumidSeconds;                 // Timer to check Temperature and control Aircon
 
-unsigned long controlECPeriod    =   30;           // Time in Minutes between controling Electronic Conductivity
-unsigned long controlTempPeriod  =    5;           // Time in Minutes between controling Temperature
-unsigned long controlHumidPeriod =    5;           // Time in Minutes between controling Humiditiy
+unsigned long controlECPeriod    =   30*60;           // Time in Minutes between controling Electronic Conductivity
+unsigned long controlTempPeriod  =    5*60;           // Time in Minutes between controling Temperature
+unsigned long controlHumidPeriod =    5*60;           // Time in Minutes between controling Humiditiy
 
 bool isTurnOnAircon = false;
 bool isTurnOnFan = false;
@@ -111,9 +111,9 @@ void takeCurrentValue()
 
 void controlEC()
 {
+  // Serial.print(currentSeconds);
   // Serial.println("Control EC Start");
-  currentEC = ecSensor.getEC();
-  constrain(currentEC,0,10);
+  currentEC = constrain(ecSensor.getEC(),0,10);
   if (currentEC < goalEC && waterLevelSensor.getWaterLevel_enum() > WATER_LEVEL_LOW)
   {
     float difference = currentEC - goalEC;
@@ -122,26 +122,27 @@ void controlEC()
     nutrient.turnOff();
   }
 
-  controlECMinutes = millis() / 60000;
+  controlECSeconds = millis() /  1000;
 };
 
 void controlTemp()
 {
+  // Serial.print(currentSeconds);
   // Serial.println("Control Temp Start");
   currentTemp = temphumidSensor.readTemperature();
-  constrain(currentTemp,0,50);
   if (currentTemp > goalTemp) aircon.turnOn();  
   else                        aircon.turnOff();
-  controlTempMinutes = millis() /60000;
+  controlTempSeconds = millis() / 1000;
 };
 
 void controlHumid()
 { 
+  // Serial.print(currentSeconds);
+  // Serial.println("Control Humid Start");
   currentHumidity = temphumidSensor.readHumidity();
-  constrain(currentHumidity,0,100);
   if(currentHumidity > goalHumid) fan.turnOn();
   else                            fan.turnOff();
-  controlHumidMinutes = millis()/60000;
+  controlHumidSeconds = millis()/ 1000;
 };
 
 void connectToESPWithMillisDelay(int delay)
@@ -177,14 +178,15 @@ void setRequestHandlerFromWifi()
 
         else if(strcmp(perform,"controller") == 0)
         {
-               if (strcmp(option, "reset")  == 0)                                 asm volatile("jmp 0");
-          else if (strcmp(option, "led")    == 0 && strcmp(value_p,"on")  == 0)   led.turnOn();
-          else if (strcmp(option, "led")    == 0 && strcmp(value_p,"off") == 0)   led.turnOff();    
-          else if (strcmp(option, "aircon") == 0 && strcmp(value_p,"on")  == 0)   isTurnOnAircon = true;
-          else if (strcmp(option, "aircon") == 0 && strcmp(value_p,"off") == 0)   isTurnOnAircon = false;
-          else if (strcmp(option, "fan")    == 0 && strcmp(value_p,"on")  == 0)   isTurnOnFan = true;
-          else if (strcmp(option, "fan")    == 0 && strcmp(value_p,"off") == 0)   isTurnOnFan = false;
-
+               if (strcmp(option, "reset")   == 0)                                 asm volatile("jmp 0");
+          else if (strcmp(option, "led")     == 0 && strcmp(value_p,"on")  == 0)   led.turnOn();
+          else if (strcmp(option, "led")     == 0 && strcmp(value_p,"off") == 0)   led.turnOff();    
+          else if (strcmp(option, "aircon")  == 0 && strcmp(value_p,"on")  == 0)   isTurnOnAircon = true;
+          else if (strcmp(option, "aircon")  == 0 && strcmp(value_p,"off") == 0)   isTurnOnAircon = false;
+          else if (strcmp(option, "fan")     == 0 && strcmp(value_p,"on")  == 0)   isTurnOnFan = true;
+          else if (strcmp(option, "fan")     == 0 && strcmp(value_p,"off") == 0)   isTurnOnFan = false;
+          else if (strcmp(option, "nutrient")== 0 && strcmp(value_p,"on")  == 0)   isTurnOnNutrient = true;
+          else if (strcmp(option, "nutrient")== 0 && strcmp(value_p,"off") == 0)   isTurnOnNutrient = false;
           // else if(strcmp(option,"abjustEC") == 0)           controlEC();
           // else if(strcmp(option,"abjustHumid") == 0)        controlHumid();
         }
