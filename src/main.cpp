@@ -1,5 +1,6 @@
 #include "LivUno.h"
-//2021-04-01 
+// #define DEBUG  //When Check about Serial printing, #define DEBUG
+//2021-04-12 
 
 void setup() {
   Serial.begin(9600);
@@ -12,18 +13,24 @@ void setup() {
 
   /* Setting Control */
   aircon.begin(AIRCON_RELAY_PIN);
-  fan.begin(AIRCON_FAN_RELAY_PIN);
+  fan.begin(FAN_RELAY_PIN);
   led.begin(LED_RELAY_PIN);
   nutrient.begin(NUTRIENT_RELAY_PIN);
-
   /* Checking Control */
-  // aircon.operateTwoSeconds();
-  // fan.operateTwoSeconds();
-  // led.operateTwoSeconds();
-  // nutrient.operateTwoSeconds();
- 
-
-Serial.println("Setting Done");
+  #ifdef DEBUG
+  aircon.operateTwoSeconds();
+  fan.operateTwoSeconds();
+  led.operateTwoSeconds();
+  nutrient.operateTwoSeconds();
+  #endif
+  // /* Wait Untill Arduino Wifi Set Done */
+  // String temp = "";
+  // while(strcmp(temp.c_str(),"setDone") != 0)
+  // {
+  //   while(Serial.available() > 0){
+  //     temp = Serial.readStringUntil('\n');
+  //   }
+  // }
 }
 
 void loop() {
@@ -33,5 +40,5 @@ void loop() {
   if ( isTurnOnNutrient && (currentSeconds - controlECSeconds    >= controlECPeriod))     controlEC();
   if ( isTurnOnAircon   && (currentSeconds - controlTempSeconds  >= controlTempPeriod))   controlTemp();
   if ( isTurnOnFan      && (currentSeconds - controlHumidSeconds >= controlHumidPeriod))  controlHumid();
-  
+
 }

@@ -19,7 +19,7 @@ public:
     co2serial.begin(9600);
   }
 
-  float getPPM()
+  int getPPM()
   {
     co2serial.listen();
     MHZ19_RESULT response = ppmSensor.retrieveData();
