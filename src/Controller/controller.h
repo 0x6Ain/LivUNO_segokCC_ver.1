@@ -6,9 +6,8 @@ class Controller
 {
 private:
     uint8_t pinNumber;
-    
-public:
     boolean isTurnOn;
+public:
     void begin(uint8_t pin);
     void turnOn();
     void turnOff();

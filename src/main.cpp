@@ -2,7 +2,8 @@
 // #define DEBUG  //When Check about Serial printing, #define DEBUG
 //2021-04-12 
 
-void setup() {
+void setup() 
+{
   Serial.begin(9600);
 
   /* Setting Sensor */
@@ -23,11 +24,13 @@ void setup() {
   led.operateTwoSeconds();
   nutrient.operateTwoSeconds();
   #endif
-  // /* Wait Untill Arduino Wifi Set Done */
+  /* Wait Untill Arduino Wifi Set Done */
   // String temp = "";
-  // while(strcmp(temp.c_str(),"setDone") != 0)
+  // while (strcmp(temp.c_str(), "wifiSetDone") != 0)
   // {
-  //   while(Serial.available() > 0){
+  //   Serial.println("unoSetDone");
+  //   while (Serial.available() > 0)
+  //   {
   //     temp = Serial.readStringUntil('\n');
   //   }
   // }
@@ -35,10 +38,11 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  // TODO:  Serial.print overlap Problem
   currentSeconds = millis()/1000;
   setRequestHandlerFromWifi();
-  if ( isTurnOnNutrient && (currentSeconds - controlECSeconds    >= controlECPeriod))     controlEC();
-  if ( isTurnOnAircon   && (currentSeconds - controlTempSeconds  >= controlTempPeriod))   controlTemp();
-  if ( isTurnOnFan      && (currentSeconds - controlHumidSeconds >= controlHumidPeriod))  controlHumid();
+  if ( autoModeOnNutrient && (currentSeconds - controlECSeconds    >= controlECPeriod))     controlEC();
+  if ( autoModeOnAircon   && (currentSeconds - controlTempSeconds  >= controlTempPeriod))   controlTemp();
+  if ( autoModeOnFan      && (currentSeconds - controlHumidSeconds >= controlHumidPeriod))  controlHumid();
 
 }

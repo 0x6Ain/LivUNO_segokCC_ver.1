@@ -9,6 +9,7 @@ class WLSensor
 {
 private:
     uint8_t highPinNum, lowPinNum;
+    bool distinguishWaterLevelLow = false;
 
 public:
     WLSensor(uint8_t high, uint8_t low)
@@ -56,13 +57,30 @@ public:
     {
         String current = getWaterLevel();
         if (current == "Low")
+        {
+            distinguishWaterLevelLow = true;
             return WATER_LEVEL_LOW;
+        }
         else if (current == "Enough")
-            return WATER_LEVEL_ENOUGH;
+        {
+            if (distinguishWaterLevelLow)
+            {
+                return WATER_LEVEL_LOW;
+            }
+            else
+            {
+                return WATER_LEVEL_ENOUGH;
+            }
+        }
         else if (current == "High")
+        {
+            distinguishWaterLevelLow = false;
             return WATER_LEVEL_HIGH;
+        }
         else
+        {
             return WATER_LEVEL_ERROR;
+        }
     }
 };
 
