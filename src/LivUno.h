@@ -33,6 +33,7 @@
 #define STATUS_KEY "status"
 #define SWITCHES_KEY "switches"
 #define CURRENT_KEY "current"
+#define ERROR_KEY "error"
 
 Controller fan, led, aircon, nutrient; 
 ECSensor ecSensor(EC_RX_PIN,EC_TX_PIN);
@@ -47,10 +48,10 @@ co2Sensor ppmSensor(CO2_RX_PIN,CO2_TX_PIN);
 
 byte timeOfAirconOn =0;
 byte timeOfFanOn =0;
-byte timeOfNutrientOn =0;
-byte limitsOfAircon = 2;
-byte limitsOfFan = 2;
-byte limitsOfNutrient = 2;
+byte timeOfNutrientOn =  0;   //TODO: set the standard of Limitaion Controller 
+byte limitsOfAircon   =  2;   //If aircon   continuously operate 10 times(5mins-> (12*4)), Error message to Log
+byte limitsOfFan      =  2;   //If Fan      continuously operate 10 times(5mins-> (12*4)), Error message to Log  
+byte limitsOfNutrient = 12;   //If Nutrient continuously operate 10 times(30mins-> (2*6)), Error message to Log
 
 //* Controlller AutoMode Flag*//
 bool autoModeOnAircon = true;
@@ -63,9 +64,9 @@ unsigned long currentSeconds;                      // Snapshot of current time
 unsigned long controlECSeconds;                    // Timer to check EC and control Nutrient Pump
 unsigned long controlTempSeconds;                  // Timer to check Temperature and control Aircon
 unsigned long controlHumidSeconds;                 // Timer to check Temperature and control Aircon
-unsigned long controlECPeriod    =   2; //30*60;           // Time in Minutes between controling Electronic Conductivity
-unsigned long controlTempPeriod  =   5;  //5*60;           // Time in Minutes between controling Temperature
-unsigned long controlHumidPeriod =   10;  //5*60;           // Time in Minutes between controling Humiditiy
+unsigned long controlECPeriod    =   30*60;           // Time in Minutes between controling Electronic Conductivity
+unsigned long controlTempPeriod  =   5*60;           // Time in Minutes between controling Temperature
+unsigned long controlHumidPeriod =   5*60;           // Time in Minutes between controling Humiditiy
 unsigned long wifiWaitPeriod = 5000;               // Time to wait for sensor data if message.available
 
 //* Current Values *//
@@ -134,7 +135,9 @@ void controlEC()
   }
   else 
   {
-    Serial.print("Error=tooManyControlEC");
+    Serial.print(ERROR_KEY);
+    Serial.print("=");
+    Serial.print("tooManyControlEC");
     Serial.print("\n");
   }
   controlECSeconds = millis() /  1000;
@@ -158,7 +161,9 @@ void controlTemp()
   }
   else
   {
-    Serial.print("Error=tooManyControlTemp");
+    Serial.print(ERROR_KEY);
+    Serial.print("=");
+    Serial.print("tooManyControlTemp");
     Serial.print("\n");
   }
   controlTempSeconds = millis() / 1000;
@@ -184,7 +189,9 @@ void controlHumid()
   }
   else
   {
-    Serial.print("Error=tooManyControlHumid");
+    Serial.print(ERROR_KEY);
+    Serial.print("=");
+    Serial.print("tooManyControlHumid");
     Serial.print("\n");
   }
 
@@ -210,12 +217,13 @@ void setRequestHandlerFromWifi()
         temp = Serial.readStringUntil('\n'); // Do not using char(13) instead '\n' 
         // Serial.println(temp);
         //  Wifi will be sent "perform/option=value_p\n"
-        //? unoWifi Will send "current" <-> Uno will send "current= ~~"
+        //? unoWifi Will send "current=" <-> Uno will send "current= ~~"
         //? unoWifi Will send "led=on"
         //? unoWifi Will send "switches=0,1,0"[aircon,fan,nutrient]
         //? unoWifi Will send "setting=2.14,24,23" <-> Uno Will send "setting= ~~"
 
-        char* perform = strtok((char*)temp.c_str(), "/=");
+        char* perform = strtok((char*)temp.c_str(), "=");
+        Serial.println(perform);
         char* value_p = strtok(NULL,"");
         // char* value_p = strtok(NULL, "");
 
@@ -232,10 +240,10 @@ void setRequestHandlerFromWifi()
         {
           char *aircon_ptr = strtok(value_p, ",");
           autoModeOnAircon = atoi(aircon_ptr);
-          char *fan_ptr = strtok(value_p, ",");
+          char *fan_ptr = strtok(NULL, ",");
           autoModeOnFan = atoi(fan_ptr);
-          char *nutrient_ptr = strtok(value_p, ",");
-          autoModeOnFan = atoi(nutrient_ptr);
+          char *nutrient_ptr = strtok(NULL, ",");
+          autoModeOnNutrient = atoi(nutrient_ptr);
 
           if (!autoModeOnAircon) aircon.turnOff();
           if (!autoModeOnFan)    fan.turnOff();
@@ -253,9 +261,9 @@ void setRequestHandlerFromWifi()
         {
           char* goalEC_ptr = strtok(value_p,",");
           goalEC = atof(goalEC_ptr);
-          char* goalTemp_ptr = strtok(value_p,",");
+          char* goalTemp_ptr = strtok(NULL,",");
           goalTemp = atoi(goalTemp_ptr);
-          char* goalHumid_ptr = strtok(value_p,",");
+          char* goalHumid_ptr = strtok(NULL,",");
           goalHumid = atoi(goalHumid_ptr);
 
           settingPayload = String(goalEC) + "," + String(goalTemp) + "," + String(goalHumid);

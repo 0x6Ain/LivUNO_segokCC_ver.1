@@ -1,5 +1,5 @@
 #include "LivUno.h"
-// #define DEBUG  //When Check about Serial printing, #define DEBUG
+#define DEBUG  //When Check about Serial printing, #define DEBUG
 //2021-04-12 
 
 void setup() 
@@ -23,6 +23,7 @@ void setup()
   fan.operateTwoSeconds();
   led.operateTwoSeconds();
   nutrient.operateTwoSeconds();
+  Serial.println("UnosetDone");
   #endif
   /* Wait Untill Arduino Wifi Set Done */
   // String temp = "";
@@ -38,7 +39,6 @@ void setup()
 
 void loop() {
   // put your main code here, to run repeatedly:
-  // TODO:  Serial.print overlap Problem
   currentSeconds = millis()/1000;
   setRequestHandlerFromWifi();
   if ( autoModeOnNutrient && (currentSeconds - controlECSeconds    >= controlECPeriod))     controlEC();
