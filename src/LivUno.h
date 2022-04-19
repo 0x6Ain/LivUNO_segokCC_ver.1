@@ -16,9 +16,9 @@
 //                                11   // None
 //                                10   // None
 #define NUTRIENT_RELAY_PIN        A0   //  12 V
-#define LED_RELAY_PIN              9   // LED      220 V 
+#define FAN_RELAY_PIN              9   //      12 V
 #define AIRCON_RELAY_PIN           8   // Nutrient 220 V
-#define FAN_RELAY_PIN              7   //      12 V
+#define LED_RELAY_PIN              7   // LED      220 V 
 #define WATER_TEMP_PIN             6   // YWROBOT DS18B20 + SEN050007
 #define EC_TX_PIN                  5   // Atlas EC Sensor
 #define EC_RX_PIN                  4   // 
@@ -29,11 +29,13 @@
 /*Temp,Humid and Lux sensors are I2C Communicate*/
 
 //* Uno and UnoWifi communicate Key *//
+#define CURRENT_KEY "current"
 #define SETTING_KEY "setting"
 #define STATUS_KEY "status"
 #define SWITCHES_KEY "switches"
-#define CURRENT_KEY "current"
+#define SWITCHES_STATUS_KEY "switchesStatus"
 #define ERROR_KEY "error"
+#define SNAPSHOTS_KEY "snapshots"
 
 Controller fan, led, aircon, nutrient; 
 ECSensor ecSensor(EC_RX_PIN,EC_TX_PIN);
@@ -44,18 +46,20 @@ Adafruit_HTU21DF temphumidSensor;
 BH1750 luxSensor(0x23);
 co2Sensor ppmSensor(CO2_RX_PIN,CO2_TX_PIN);
 
+//TODO: set the standard of Limitaion Controller 
 //* Limits of Controller *//
 
-byte timeOfAirconOn =0;
-byte timeOfFanOn =0;
-byte timeOfNutrientOn =  0;   //TODO: set the standard of Limitaion Controller 
-byte limitsOfAircon   =  2;   //If aircon   continuously operate 10 times(5mins-> (12*4)), Error message to Log
-byte limitsOfFan      =  2;   //If Fan      continuously operate 10 times(5mins-> (12*4)), Error message to Log  
-byte limitsOfNutrient = 12;   //If Nutrient continuously operate 10 times(30mins-> (2*6)), Error message to Log
+const byte limitsOfAircon   = 48;   //If aircon   continuously operate 10 times(5mins-> (12*4)), Error message to Log
+const byte limitsOfFan      = 48;   //If Fan      continuously operate 10 times(5mins-> (12*4)), Error message to Log  
+const byte limitsOfNutrient = 12;   //If Nutrient continuously operate 10 times(30mins-> (2*6)), Error message to Log
+
+boolean airconError   = false;
+boolean fanError      = false;
+boolean nutrientError = false;
 
 //* Controlller AutoMode Flag*//
-bool autoModeOnAircon = true;
-bool autoModeOnFan = true;
+bool autoModeOnAircon   = true;
+bool autoModeOnFan      = true;
 bool autoModeOnNutrient = true;
 
 //* Time Values *//
@@ -64,10 +68,11 @@ unsigned long currentSeconds;                      // Snapshot of current time
 unsigned long controlECSeconds;                    // Timer to check EC and control Nutrient Pump
 unsigned long controlTempSeconds;                  // Timer to check Temperature and control Aircon
 unsigned long controlHumidSeconds;                 // Timer to check Temperature and control Aircon
-unsigned long controlECPeriod    =   30*60;           // Time in Minutes between controling Electronic Conductivity
-unsigned long controlTempPeriod  =   5*60;           // Time in Minutes between controling Temperature
-unsigned long controlHumidPeriod =   5*60;           // Time in Minutes between controling Humiditiy
-unsigned long wifiWaitPeriod = 5000;               // Time to wait for sensor data if message.available
+unsigned long errorSeconds;                        // Timer to error
+unsigned long controlECPeriod    =   30*60;        // Time in 30 * 60 Seconds between controling Electronic Conductivity
+unsigned long controlTempPeriod  =    5*60;        // Time in  5 * 60 Seconds between controling Temperature
+unsigned long controlHumidPeriod =    5*60;        // Time in  5 * 60 Seconds between controling Humiditiy
+unsigned long errorPeriod         =  60*60;        // Time in   60*60 Seconds
 
 //* Current Values *//
 float currentTemp = -1;
@@ -85,8 +90,6 @@ int goalTemp = 24;
 int goalHumid = 60;
 
 String payload = String(currentTemp) + "," + String(currentHumidity)+ "," + String(currentLux)+ "," + String(currentPPM) + "," +  String(currentWaterTemp) + "," + currentWaterLevel  + "," + String(currentPH) + "," + String(currentEC);
-String switchesPayload = String(autoModeOnAircon) + "," + String(autoModeOnFan) + "," + String(autoModeOnNutrient);
-String settingPayload = String(goalEC) + "," + String(goalTemp) + "," + String(goalHumid);
 
 
 void getCurrentValue();
@@ -120,25 +123,23 @@ void getCurrentValue()
 void controlEC()
 {
   currentEC = constrain(ecSensor.getEC(),0,10);
-  if(timeOfNutrientOn <= limitsOfNutrient)
+  if(!nutrientError && nutrient.countOfContinuousOperate <= limitsOfNutrient)
   {
-    // Serial.print("Control EC Start");
-    // Serial.print("\n");
     if (currentEC < goalEC && waterLevelSensor.getWaterLevel_enum() > WATER_LEVEL_LOW)
     {
       float difference = currentEC - goalEC;
+      Serial.print("setEC:");
+      Serial.print(nutrient.countOfContinuousOperate);
+      Serial.print(" time");
+      Serial.print("\n");
       nutrient.turnOn();
       connectToUnoWifiWithMillisDelay(1000 * difference);
       nutrient.turnOff();
-      timeOfNutrientOn++;
     }
   }
   else 
   {
-    Serial.print(ERROR_KEY);
-    Serial.print("=");
-    Serial.print("tooManyControlEC");
-    Serial.print("\n");
+    nutrientError = true;
   }
   controlECSeconds = millis() /  1000;
 };
@@ -146,53 +147,48 @@ void controlEC()
 void controlTemp()
 {
   currentTemp = temphumidSensor.readTemperature();
-  if (timeOfAirconOn <= limitsOfAircon)
+  if (!airconError && aircon.countOfContinuousOperate <= limitsOfAircon)
   {
     if (currentTemp > goalTemp)
     {
+      Serial.println("airconOn");
       aircon.turnOn();
-      timeOfAirconOn++;
     }
     else
     {
+      Serial.println("airconOff");
       aircon.turnOff();
-      timeOfAirconOn = 0;
     }
   }
   else
   {
-    Serial.print(ERROR_KEY);
-    Serial.print("=");
-    Serial.print("tooManyControlTemp");
-    Serial.print("\n");
+    airconError = true;
   }
   controlTempSeconds = millis() / 1000;
 };
 
 void controlHumid()
 {
-  // Serial.print(currentSeconds);
   
   currentHumidity = temphumidSensor.readHumidity();
-  if (timeOfFanOn <= limitsOfFan)
+  if (!fanError && fan.countOfContinuousOperate <= limitsOfFan)
   {
     if (currentHumidity > goalHumid)
     {
+      Serial.print("fanon");
+      Serial.print("\n");
       fan.turnOn();
-      timeOfFanOn++;
     }
     else
     {
+      Serial.print("fanOff");
+      Serial.print("\n");
       fan.turnOff();
-      timeOfFanOn = 0;
     }
   }
   else
   {
-    Serial.print(ERROR_KEY);
-    Serial.print("=");
-    Serial.print("tooManyControlHumid");
-    Serial.print("\n");
+    fanError = true;
   }
 
   controlHumidSeconds = millis()/ 1000;
@@ -220,10 +216,11 @@ void setRequestHandlerFromWifi()
         //? unoWifi Will send "current=" <-> Uno will send "current= ~~"
         //? unoWifi Will send "led=on"
         //? unoWifi Will send "switches=0,1,0"[aircon,fan,nutrient]
+        //? uniWifi will send "switchesStatus="
         //? unoWifi Will send "setting=2.14,24,23" <-> Uno Will send "setting= ~~"
 
         char* perform = strtok((char*)temp.c_str(), "=");
-        Serial.println(perform);
+        // Serial.println(perform);
         char* value_p = strtok(NULL,"");
         // char* value_p = strtok(NULL, "");
 
@@ -233,6 +230,14 @@ void setRequestHandlerFromWifi()
           Serial.print(CURRENT_KEY);
           Serial.print("=");
           Serial.print(payload);
+          Serial.print("\n");
+        }
+        else if(strcmp(perform,SWITCHES_STATUS_KEY) == 0)
+        {
+          String switchesStatusPayload = String(autoModeOnAircon) + "," + String(autoModeOnFan) + "," + String(autoModeOnNutrient);
+          Serial.print(SWITCHES_KEY);
+          Serial.print("=");
+          Serial.print(switchesStatusPayload);
           Serial.print("\n");
         }
 
@@ -249,7 +254,7 @@ void setRequestHandlerFromWifi()
           if (!autoModeOnFan)    fan.turnOff();
           if (!autoModeOnNutrient)  nutrient.turnOff();
           
-          switchesPayload = String(autoModeOnAircon) + "," + String(autoModeOnFan) + "," + String(autoModeOnNutrient);
+          String switchesPayload = String(autoModeOnAircon) + "," + String(autoModeOnFan) + "," + String(autoModeOnNutrient);
 
           Serial.print(SWITCHES_KEY);
           Serial.print("=");
@@ -266,7 +271,7 @@ void setRequestHandlerFromWifi()
           char* goalHumid_ptr = strtok(NULL,",");
           goalHumid = atoi(goalHumid_ptr);
 
-          settingPayload = String(goalEC) + "," + String(goalTemp) + "," + String(goalHumid);
+          String settingPayload = "goalEC : "+ String(goalEC) + "," +  "goalTemp : " + String(goalTemp) + "," +  "goalHumid : "+ String(goalHumid);
           Serial.print(SETTING_KEY);
           Serial.print("=");
           Serial.print(settingPayload);
@@ -275,9 +280,25 @@ void setRequestHandlerFromWifi()
         else if (strcmp(perform, "led") == 0)
         {
           if (strcmp(value_p, "on") == 0)
+          {
             led.turnOn();
+            Serial.print("ledOn");
+            Serial.print("\n");
+          }
           else if (strcmp(value_p, "off") == 0)
+          {
             led.turnOff();
+            Serial.print("ledOff");
+            Serial.print("\n");
+          }
+        }
+        else if (strcmp(perform, SNAPSHOTS_KEY) == 0)
+        {
+          getCurrentValue();
+          Serial.print(SNAPSHOTS_KEY);
+          Serial.print("=");
+          Serial.print(payload);
+          Serial.print("\n");
         }
     }
 }

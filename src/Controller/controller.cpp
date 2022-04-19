@@ -10,6 +10,7 @@ void Controller::begin(uint8_t pin)
 
 void Controller::turnOn()
 {
+    countOfContinuousOperate++;
     if(!isTurnOn) {
         digitalWrite(pinNumber, LOW);
         isTurnOn = true;
@@ -17,7 +18,8 @@ void Controller::turnOn()
 };
 
 void Controller::turnOff()
-{
+{   
+    countOfContinuousOperate = 0;
     if(isTurnOn) {
         digitalWrite(pinNumber,HIGH);
         isTurnOn = false;
